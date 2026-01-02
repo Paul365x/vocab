@@ -28,6 +28,7 @@ var blNumber bool               // blacklist all numbers - set on the token <num
 var start int					// starting word to output
 var last int					// last word to output
 var format string               // format to ouput: anki, db, default
+var chapter string	            // control chapter output
 
 // concordanceCmd represents the concordance command
 var concordanceCmd = &cobra.Command{
@@ -44,7 +45,8 @@ var concordanceCmd = &cobra.Command{
 	Flags:
 	-s <number>, --start <number> : First word to output
 	-l <number>, --last <number> : Last word to output
-	-f <format>, --format <format> : output format (anki, db, default)`,
+	-f <format>, --format <format> : output format (anki, db, default)
+	-c <chapter>, --chapters <chapters> : use the configured chapters to breakup the concordance`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
@@ -65,6 +67,7 @@ func init() {
 	cmd.Flags().IntVarP(&start, "start", "s", 0, "First word to output")
 	cmd.Flags().IntVarP(&last, "last", "l", -1, "last word to output")
 	cmd.Flags().StringVarP(&format, "format", "f", "default", "output format")
+	cmd.Flags().StringVarP(&chapter, "chapter", "c", "none", "only output this chapter")
 		
 	rootCmd.AddCommand(concordanceCmd)
 
@@ -106,12 +109,18 @@ func readConfig() error {
 	}
 	chFile := config.GetChapters()	
 	if chFile != "none" {
-		chapters, err = readList(blFile)	
+		chapters, err = readList(chFile)	
 		if err != nil {
 			return err
 		}	
 	} else {
 		chapters = make(map[string]int)
+	}
+	// if we are not doing chapters, we fold them into the blacklist
+	if chapter == "none" {
+		for key,_ := range chapters {
+			blacklist[key] = 1
+		}
 	}
 	return nil
 }
@@ -138,6 +147,7 @@ func readList(file string) (map[string]int, error) {
 } 
 
 func scan() {
+	active := false // state for chapter output
 	conc := make(map[string]int)
 	var s scanner.Scanner
 	f, err := os.Open(source)
@@ -154,7 +164,20 @@ func scan() {
         if word == "\n" {
 			continue
 		}
-
+		if chapter != "none" && !active {
+			if chapter == word {
+			   active = true
+			}
+			continue
+		} 
+        if chapter != "none" && active {
+			_, fin := chapters[word]
+			if fin {
+				active = false
+				continue
+			}
+		}
+		
 		// weed the stream
 		if blNumber {
 		    _, err := strconv.Atoi(word)
