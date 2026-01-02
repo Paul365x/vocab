@@ -6,13 +6,16 @@ package cmd
 import (
 	"fmt"
 
+	"internal/config"
+	"internal/util"
+
 	"github.com/spf13/cobra"
 )
 
 // blacklistCmd represents the blacklist command
 var blacklistCmd = &cobra.Command{
 	Use:   "blacklist",
-	Short: "Add things to ignore when running a concordance",
+	Short: "Add a file of things to ignore when running a concordance",
 	Long: `I originally wrote this to help translate the Vulgate. This had numbers, the word 
 "Anonymous" and other things I wasn't interested in when running a concordance. This file loads
 all those definitions, Each definition is by itself on a line in a text file:
@@ -23,18 +26,14 @@ Call: vocab config blacklist <file/path>`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
-			blertBl(cmd, args)
+			util.Blert(cmd.Long, args)
 			return
 		}
 		fmt.Println("Adding the file: ", args[0], " as the blacklist")
-		// read in the config file and put this file in the blacklist position
+		config.SetBlacklist(args[0])
 	},
 }
 
-func blertBl(cmd *cobra.Command, args []string) {
-	fmt.Println(cmd.Long)
-	fmt.Println("You gave me: ", args)
-}
 
 func init() {
 	configCmd.AddCommand(blacklistCmd)

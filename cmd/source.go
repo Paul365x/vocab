@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"fmt"
+	"internal/config"
+	"internal/util"
 
 	"github.com/spf13/cobra"
 )
@@ -17,11 +19,11 @@ var sourceCmd = &cobra.Command{
 	Call: vocab config source <file/path>`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
-			blertSrc(cmd, args)
+			util.Blert(cmd.Long, args)
 			return
 		}
 		fmt.Println("Adding the file: ", args[0], " as the source document")
-		// read in the config file and put this file in the blacklist position
+		config.SetSource(args[0])
 	},
 }
 

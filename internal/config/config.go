@@ -12,7 +12,7 @@ type configStr map[string]string
 
 // createConfig
 func CreateConfig() configStr {
-	str := configStr{"blacklist": "none", "source": "none"}
+	str := configStr{"blacklist": "none", "source": "none", "chapters" : "none"}
 	_writeConfig(str)
 	return str
 }
@@ -39,6 +39,16 @@ func SetSource( file string) configStr {
 	return str
 }
 
+// setChapters
+func SetChapters( file string) configStr {
+	str := _readConfig()
+	str["chapters"] = file
+	err := _writeConfig(str)
+	if err != nil {
+		panic(err)
+	}
+	return str
+}
 // getBlacklist
 func GetBlacklist() string {
 	str := _readConfig()
@@ -49,6 +59,12 @@ func GetBlacklist() string {
 func GetSource() string {
 	str := _readConfig()
 	return str["source"]
+}
+
+// getChapters
+func GetChapters() string {
+	str := _readConfig()
+	return str["chapters"]
 }
 
 // _readConfig
@@ -62,14 +78,12 @@ func _readConfig() configStr {
 	}
 	lns := strings.Split(string(c), "\n")
 
-	for ln := range lns {
-		
+	for ln := range lns {	
 		lnNoW := strings.ReplaceAll(lns[ln], " ", "")
 		if len(lnNoW) <= 0 {
 			continue
 		}
 		kvPair := strings.Split(lnNoW, ":")
-		fmt.Println("xxx ",kvPair)
 		str[kvPair[0]] = kvPair[1]
 	}
 	return str
@@ -88,4 +102,11 @@ func _writeConfig(str configStr) error {
 		f.WriteString(ln)
 	}
 	return nil
+}
+
+func DisplayConfig() {
+	str := _readConfig()
+	for key, val := range str {
+		fmt.Printf("%s : %s\n", key, val)
+	}
 }

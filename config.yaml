@@ -1,2 +1,3 @@
-blacklist : howdy
-source : hello
+chapters : none
+blacklist : blacklist
+source : vul.txt
