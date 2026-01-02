@@ -25,6 +25,10 @@ var blacklist map[string]int	// lookup table for blacklisted words
 var source string
 var chapters map[string]int	    // lookup table for chapter break words
 var blNumber bool               // blacklist all numbers - set on the token <number> in the black list file
+var start int					// starting word to output
+var last int					// last word to output
+var format string               // format to ouput: anki, db, default
+
 // concordanceCmd represents the concordance command
 var concordanceCmd = &cobra.Command{
 	Use:   "concordance",
@@ -34,12 +38,19 @@ var concordanceCmd = &cobra.Command{
 	- blacklist file listing one word/symbol/character per line of things to ignore. Also supports <number>
 	- source file is the document to read
 	- chapters - if the -c flag is set, will output in chapter format based on the chapter file. Otherwise
-	any chapter file will be added to the blacklist`,
+	any chapter file will be added to the blacklist
+	
+	Call vocab concordance [<flags>]
+	Flags:
+	-s <number>, --start <number> : First word to output
+	-l <number>, --last <number> : Last word to output
+	-f <format>, --format <format> : output format (anki, db, default)`,
+
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
 			util.Blert(cmd.Long, args)
 			return
-		}
+		}		
 		err := readConfig()
 		if err != nil {
 			panic(err)
@@ -49,6 +60,12 @@ var concordanceCmd = &cobra.Command{
 }
 
 func init() {
+	
+	cmd := concordanceCmd
+	cmd.Flags().IntVarP(&start, "start", "s", 0, "First word to output")
+	cmd.Flags().IntVarP(&last, "last", "l", -1, "last word to output")
+	cmd.Flags().StringVarP(&format, "format", "f", "default", "output format")
+		
 	rootCmd.AddCommand(concordanceCmd)
 
 	// Here you will define your flags and configuration settings.
@@ -63,6 +80,7 @@ func init() {
 
 	
 }
+
 
 func readConfig() error {
 	var err error
@@ -168,14 +186,39 @@ func scan() {
 	})
 
 	acc := 0
-	//order := 0
-	fmt.Printf("%-10s %-20s %-10s | %-5s %-5s\n","V_Size", "Word", "Count","%Tot","Acc %Tot")
+	
+	// print the header if any
+	switch format {
+	case "default":
+		fmt.Printf("%-10s %-20s %-10s | %-5s %-5s\n","V_Size", "Word", "Count","%Tot","Acc %Tot")
+	case "anki": // don't want a header so nothing to do
+	default: 
+		panic("Unknown concordance format")
+	}
+	
 	for key := range keys {
+		if key < start {
+			// skip to where we want to start
+			continue
+		}
+		if last > 0 && last < key {
+			// stop when we hit last
+			break
+		}
 		count := conc[keys[key]]
 		acc += count
-		//order++
-		fmt.Printf("%-10d %-20s %-10d | %5.2f%% %-5.2f%%\n", key, keys[key], conc[keys[key]],
+		
+		switch format {
+		case "default":
+			fmt.Printf("%-10d %-20s %-10d | %5.2f%% %-5.2f%%\n", key, keys[key], conc[keys[key]],
 			percent.PercentOf(count, tot), percent.PercentOf(acc, tot))
+	    case "anki":
+			fmt.Printf("%s,,\n", keys[key])
+		default: 
+			panic("Unknown concordance format")
+			
+		}
+		
 	}
 
 }
