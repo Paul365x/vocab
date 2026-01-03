@@ -15,10 +15,9 @@ import (
 var chaptersCmd = &cobra.Command{
 	Use:   "chapters",
 	Short: "Add the markers for chapter output of concordance",
-	Long: `Many documents are broken into parts or chapters. 
-	In the bible, we have the books - genesis, exodus.. etc. 
-	By supplying key words that define the chapters, concordance can output
-	a separate list for each "chapter". The chapter list is a text file with 
+	Long: `Many documents are broken into parts or chapters. In the bible, 
+	we have the books - genesis, exodus.. etc. By supplying key words that define the chapters, 
+	concordance can output a separate list for each "chapter". The chapter list is a text file with 
 	one key word per line
 	
 	Call: vocab config chapters <file/path>`,

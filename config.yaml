@@ -1,3 +1,4 @@
-chapters : none
+chapters : chapters
 blacklist : blacklist
 source : vul.txt
+language : /la/en/

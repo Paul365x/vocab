@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"internal/config"
+	"internal/translate"
 	"internal/util"
 	"text/scanner"
 
@@ -29,6 +30,8 @@ var start int					// starting word to output
 var last int					// last word to output
 var format string               // format to ouput: anki, db, default
 var chapter string	            // control chapter output
+var translateThis bool          // controls whether to translate
+var langTrans string			// type of translation required
 
 // concordanceCmd represents the concordance command
 var concordanceCmd = &cobra.Command{
@@ -38,7 +41,7 @@ var concordanceCmd = &cobra.Command{
 	lease frequent. It depends on configured:
 	- blacklist file listing one word/symbol/character per line of things to ignore. Also supports <number>
 	- source file is the document to read
-	- chapters - if the -c flag is set, will output in chapter format based on the chapter file. Otherwise
+	- chapters - if the -c flag is set, will output the specified chapter. Otherwise
 	any chapter file will be added to the blacklist
 	
 	Call vocab concordance [<flags>]
@@ -46,8 +49,8 @@ var concordanceCmd = &cobra.Command{
 	-s <number>, --start <number> : First word to output
 	-l <number>, --last <number> : Last word to output
 	-f <format>, --format <format> : output format (anki, db, default)
-	-c <chapter>, --chapters <chapters> : use the configured chapters to breakup the concordance`,
-
+	-c <chapter>, --chapters <chapters> : use the configured chapters to breakup the concordance
+    -t, --translate : translate the output`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
 			util.Blert(cmd.Long, args)
@@ -68,7 +71,7 @@ func init() {
 	cmd.Flags().IntVarP(&last, "last", "l", -1, "last word to output")
 	cmd.Flags().StringVarP(&format, "format", "f", "default", "output format")
 	cmd.Flags().StringVarP(&chapter, "chapter", "c", "none", "only output this chapter")
-		
+	cmd.Flags().BoolVarP(&translateThis, "translate", "t", false, "translate on output")	
 	rootCmd.AddCommand(concordanceCmd)
 
 	// Here you will define your flags and configuration settings.
@@ -118,10 +121,11 @@ func readConfig() error {
 	}
 	// if we are not doing chapters, we fold them into the blacklist
 	if chapter == "none" {
-		for key,_ := range chapters {
+		for key := range chapters {
 			blacklist[key] = 1
 		}
 	}
+	langTrans = config.GetLanguage()
 	return nil
 }
 
@@ -161,7 +165,7 @@ func scan() {
 
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		word := s.TokenText()
-        if word == "\n" {
+        if word == "\n" || word == "\f" {
 			continue
 		}
 		if chapter != "none" && !active {
@@ -174,10 +178,10 @@ func scan() {
 			_, fin := chapters[word]
 			if fin {
 				active = false
-				continue
+				break
 			}
 		}
-		
+
 		// weed the stream
 		if blNumber {
 		    _, err := strconv.Atoi(word)
@@ -189,7 +193,7 @@ func scan() {
 		if blacklisted {
 			continue
 		}
-		
+//		fmt.Println(word,blNumber)
 		_, ok := conc[word]
 		if ok {
 			conc[word]++
@@ -213,7 +217,11 @@ func scan() {
 	// print the header if any
 	switch format {
 	case "default":
-		fmt.Printf("%-10s %-20s %-10s | %-5s %-5s\n","V_Size", "Word", "Count","%Tot","Acc %Tot")
+		if translateThis {
+			fmt.Printf("%-10s %-20s %-20s %-10s | %7s  %7s\n","V_Size", "Word", "Trans", "Count","%Tot","%ATot")
+		} else {
+			fmt.Printf("%-10s %-20s %-10s | %7s  %7s\n","V_Size", "Word", "Count","%Tot","%ATot")
+		}
 	case "anki": // don't want a header so nothing to do
 	default: 
 		panic("Unknown concordance format")
@@ -232,16 +240,29 @@ func scan() {
 		acc += count
 		
 		switch format {
-		case "default":
-			fmt.Printf("%-10d %-20s %-10d | %5.2f%% %-5.2f%%\n", key, keys[key], conc[keys[key]],
-			percent.PercentOf(count, tot), percent.PercentOf(acc, tot))
+		case "default":			
+			if translateThis {
+				trans := translate.Translate(keys[key])
+				fmt.Printf("%-10d %-20s %-20s %-10d | %7.2f%% %7.2f%%\n", 
+					key, keys[key], trans[0].Trans, conc[keys[key]],
+					percent.PercentOf(count, tot), percent.PercentOf(acc, tot))
+			} else {
+				fmt.Printf("%-10d %-20s %-10d | %7.2f%% %7.2f%%\n", key, keys[key], conc[keys[key]],
+					percent.PercentOf(count, tot), percent.PercentOf(acc, tot))
+			}
 	    case "anki":
-			fmt.Printf("%s,,\n", keys[key])
-		default: 
-			panic("Unknown concordance format")
-			
-		}
-		
-	}
+			if translateThis {
+				trans := translate.Translate(keys[key])
+				for t := range trans {
+					fmt.Printf("%s,%s (%s),%s (%s)\n", 
+						keys[key], trans[t].Trans, trans[t].Role, trans[t].OrEx, trans[t].TrEx )
+				}
 
+			} else {
+				fmt.Printf("%s,,\n", keys[key])
+			}
+		default: 
+			panic("Unknown concordance format")			
+		}		
+	}
 }

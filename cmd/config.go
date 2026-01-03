@@ -16,8 +16,10 @@ var configCmd = &cobra.Command{
 	Long: `vocab config
 	vocab config blacklist <blacklist file>
 	vocab config source <source file>
+	vocab config chapters <chapters file>
 	vocab config reset
-	vocab config display`,
+	vocab config display
+	vocab config language`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Long)

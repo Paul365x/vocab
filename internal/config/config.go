@@ -12,7 +12,7 @@ type configStr map[string]string
 
 // createConfig
 func CreateConfig() configStr {
-	str := configStr{"blacklist": "none", "source": "none", "chapters" : "none"}
+	str := configStr{"blacklist": "none", "source": "none", "chapters" : "none", "language" : "none"}
 	_writeConfig(str)
 	return str
 }
@@ -49,6 +49,28 @@ func SetChapters( file string) configStr {
 	}
 	return str
 }
+
+// setLanguage
+func SetLanguage( lang string) configStr {
+	str := _readConfig()
+	// sanity checks that it seems appropriate
+	if len(lang) != 7 {
+		fmt.Println("Language string seems wrong - length")
+		return str
+	}
+	if strings.Count(lang, "/") != 3 {
+		fmt.Println("Language string seems wrong - number of slashes")
+		return str
+	}
+
+	str["language"] = lang
+	err := _writeConfig(str)
+	if err != nil {
+		panic(err)
+	}
+	return str
+}
+
 // getBlacklist
 func GetBlacklist() string {
 	str := _readConfig()
@@ -65,6 +87,12 @@ func GetSource() string {
 func GetChapters() string {
 	str := _readConfig()
 	return str["chapters"]
+}
+
+// getLanguage
+func GetLanguage() string {
+	str := _readConfig()
+	return str["language"]
 }
 
 // _readConfig
