@@ -1,0 +1,230 @@
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	bolt "go.etcd.io/bbolt"
+)
+
+var dbLoc string = "db"
+var fieldSep string = "\x1F"   // ascii unit separator
+var recordSep string = "\x1E"  // ascii record separator
+var DocName string = "vulgate" // bucket to use
+
+type trTuple struct {
+	Orig string
+	Trans string
+	Role string
+	OrEx string
+	TrEx string
+}
+
+func packWords( words []trTuple ) ( string, string, error ) {
+
+	if len(words) < 1 {
+		return "", "", errors.New("Pack: Empty words to store")
+	}
+	var key string = words[0].Orig
+	var val string
+	for t := range words {
+		if words[t].Orig != key {
+			return "", "", errors.New("pack: more than one original word")
+		}
+		record := words[t].Trans + fieldSep + words[t].Role + fieldSep + words[t].OrEx + fieldSep + words[t].TrEx
+		if len(val) <= 0 {
+			val = record
+		} else {
+			val = val + recordSep + record
+		}
+	}
+	return key, val, nil
+}
+
+func unpackWords( key string, val string) ([]trTuple, error) {
+	words := []trTuple{}
+	records := strings.Split(val, recordSep)
+	for rec := range records {
+		var tr trTuple
+		tr.Orig = key
+		fields := strings.Split(records[rec], fieldSep)
+		if len(fields) != 4 {
+			return words, errors.New("UnPack: wrong number of fields")
+		}
+		tr.Trans = fields[0]
+		tr.Role = fields[1]
+		tr.OrEx = fields[2]
+		tr.TrEx = fields[3]
+		words = append(words, tr)
+	}
+	return words, nil
+}
+
+func Create( words []trTuple) error {
+	key, val, err := packWords(words)
+	if err != nil {
+		return err
+	}
+	var db *bolt.DB
+	db, err = bolt.Open(dbLoc + "/vocab.db", 0600, nil)
+	if err != nil {
+       return err
+    }
+    defer db.Close()
+
+	// check there is not a key there otherwise will overwrite
+	var tval string = ""
+	err = db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(DocName))
+        
+        tval = string(bucket.Get([]byte(key)))
+        return nil
+    })
+    if len(tval) > 0 {
+		return errors.New("Create: key already exists")
+	}
+	err = db.Update(func( tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(DocName))
+        if err != nil {
+            return err
+        }
+        
+        err = bucket.Put([]byte(key), []byte(val))
+        if err != nil {
+            return err
+        }
+        return nil
+    })    
+	return err
+}
+
+func Read( key string) ([]trTuple, error) {	
+	var val string
+	var words []trTuple
+	db, err := bolt.Open(dbLoc + "/vocab.db", 0600, nil)
+	if err != nil {
+       return words,err
+    }
+    defer db.Close()
+
+	err = db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(DocName))
+        
+        val = string(bucket.Get([]byte(key)))
+        return nil
+    })
+	if err != nil {
+		return words, err
+	 }
+
+	 if len(val) > 0 {
+	 	words, err = unpackWords(key, val)
+	}
+	 return words, err
+}
+
+func Update( words []trTuple) error {
+	key, val, err := packWords(words)
+	if err != nil {
+		return err
+	}
+	var db *bolt.DB
+	db, err = bolt.Open(dbLoc + "/vocab.db", 0600, nil)
+	if err != nil {
+       return(err)
+    }
+    defer db.Close()
+
+	err = db.Update(func( tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(DocName))
+        if err != nil {
+            return err
+        }
+
+		if bucket.Get([]byte(key)) != nil {
+			err = bucket.Delete([]byte(key))
+		}
+		if err != nil {
+			return(err)
+		}
+
+        err = bucket.Put([]byte(key), []byte(val))
+        if err != nil {
+            return(err)
+        }
+        return nil
+    })    
+	return err
+}
+
+func Delete(key string) error {
+	var db *bolt.DB
+	var err error
+	db, err = bolt.Open(dbLoc + "/vocab.db", 0600, nil)
+	if err != nil {
+       panic(err)
+    }
+    defer db.Close()
+
+	err = db.Update(func( tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(DocName))
+        if err != nil {
+            return err
+        }
+
+		if bucket.Get([]byte(key)) != nil {
+			err = bucket.Delete([]byte(key))
+		}
+		return nil
+	})
+	return err
+}
+
+func main() {
+	var words []trTuple
+	tr := trTuple{Orig : "et", 
+		          Trans : "and", 
+				  Role : "conjunction", 
+				  OrEx : "Homo sum et nihil humani a me alienum puto.",
+				  TrEx : "I am human, and I think nothing human is alien to me."}
+	words = append(words, tr)
+	tr = trTuple{Orig : "et", 
+		          Trans : "too", 
+				  Role : "conjunction", 
+				  OrEx : "Forsan et haec olim meminisse iuvabit",
+				  TrEx : "This too sometime we shall haply remember with delight."}
+	words = append(words, tr)
+	fmt.Println(words)
+err := Create(words)
+fmt.Println(err)
+
+err = Create(words)
+fmt.Println(err)
+
+words, err = Read("et")
+fmt.Println(words)
+fmt.Println(err)
+
+words = []trTuple{}
+tr = trTuple{Orig : "et", 
+		          Trans : "and", 
+				  Role : "conjunction", 
+				  OrEx : "Homo sum et nihil humani a me alienum puto.",
+				  TrEx : "blitz I am human, and I think nothing human is alien to me."}
+	words = append(words, tr)
+	tr = trTuple{Orig : "et", 
+		          Trans : "too", 
+				  Role : "conjunction", 
+				  OrEx : "Forsan et haec olim meminisse iuvabit",
+				  TrEx : "blitz This too sometime we shall haply remember with delight."}
+err = Update(words)
+words, err = Read("et")
+fmt.Println(words)
+fmt.Println(err)
+
+err = Delete("et")
+fmt.Println("del",err)
+
+words, err = Read("et")
+fmt.Println(words)
+fmt.Println(err)
+}
